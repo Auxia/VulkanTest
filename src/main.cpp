@@ -1,17 +1,11 @@
-#include <memory>
-#ifdef __INTELLISENSE__
-#include <vulkan/vulkan_raii.hpp>
-#else
-#endif
-#include <vulkan/vk_platform.h>
 #include <GLFW/glfw3.h>
 
 #include <iostream>
 #include <stdexcept>
 #include <cstdlib>
 
-const uint32_t WIDTH = 800;
-const uint32_t HEIGHT = 600;
+constexpr uint32_t WIDTH = 800;
+constexpr uint32_t HEIGHT = 600;
 
 class HelloTriangleApplication {
 public:
@@ -24,14 +18,13 @@ public:
 
 private:
     GLFWwindow* window = nullptr;
-
     void initWindow() {
         glfwInit();
 
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
         glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
-        window = glfwCreateWindow(WIDTH, HEIGHT, "Vulkan", nullptr, nullptr);
+        window = glfwCreateWindow(WIDTH, HEIGHT, "VulkanTest", nullptr, nullptr);
     }
 
     void initVulkan() {
@@ -39,7 +32,7 @@ private:
     }
 
     void mainLoop() {
-        while (!glfwWindowShouldClose(window)) {
+        while(!glfwWindowShouldClose(window)) {
             glfwPollEvents();
         }
     }
@@ -52,8 +45,9 @@ private:
 };
 
 int main() {
+    HelloTriangleApplication app;
+
     try {
-        HelloTriangleApplication app;
         app.run();
     } catch (const std::exception& e) {
         std::cerr << e.what() << std::endl;
