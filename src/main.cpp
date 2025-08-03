@@ -91,18 +91,7 @@ private:
             throw std::runtime_error("One or more required layers are not supported");
         }
 
-        // Get the required instance extensions from GLFW.
-        uint32_t glfwExtensionCount = 0;
-        auto glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-        uint32_t enabledExtensionCount = glfwExtensionCount + 2; // MacOS Specific -> 2
-        const char** ppEnabledExtensionNames = (const char**)malloc(enabledExtensionCount * sizeof(char*));
-
-        uint32_t offset = 0;
-        for (; offset < glfwExtensionCount; ++offset) {
-            ppEnabledExtensionNames[offset] = glfwExtensions[offset];
-        }
-        ppEnabledExtensionNames[offset++] = VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME;
-        ppEnabledExtensionNames[offset++] = VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME;
+        auto extensions = getRequiredExtensions();
 
         printEnabledExtensions();
 
@@ -111,10 +100,29 @@ private:
             .pApplicationInfo = &appInfo, 
             .enabledLayerCount = static_cast<uint32_t>(requiredLayers.size()),
             .ppEnabledLayerNames = requiredLayers.data(),
-            .enabledExtensionCount = enabledExtensionCount,
-            .ppEnabledExtensionNames =  ppEnabledExtensionNames
+            .enabledExtensionCount = static_cast<uint32_t>(extensions.size()),
+            .ppEnabledExtensionNames =  extensions.data()
         };
         instance = vk::raii::Instance(context, createInfo);
+    }
+
+    std::vector<const char*> getRequiredExtensions () {
+
+        // Get the required instance extensions from GLFW.
+        uint32_t glfwExtensionCount = 0;
+        auto glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+
+        std::vector extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
+
+        extensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
+        extensions.push_back(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
+
+        if (enableValidationLayers) {
+            extensions.push_back(vk::EXTDebugUtilsExtensionName);
+        }
+
+        return extensions;
+
     }
 
     void printEnabledExtensions() {
