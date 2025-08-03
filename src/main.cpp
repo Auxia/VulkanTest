@@ -4,8 +4,9 @@
 #include <cstdlib>
 #include <memory>
 
+#define VULKAN_HPP_NO_STRUCT_CONSTRUCTORS
 #include <vulkan/vulkan_raii.hpp>
-
+#include <vulkan/vulkan.hpp>
 #include <vulkan/vk_platform.h>
 
 #define GLFW_INCLUDE_VULKAN // REQUIRED only for GLFW CreateWindowSurface.
@@ -13,6 +14,16 @@
 
 constexpr uint32_t WIDTH = 800;
 constexpr uint32_t HEIGHT = 600;
+
+const std::vector validationLayers {
+    "VK_LAYER_KHRONOS_validation"
+};
+
+#ifdef NDEBUG
+constexpr bool enableValidationLayers = false;
+#else
+constexpr bool enableValidationLayers = true;
+#endif
 
 class HelloTriangleApplication {
 public:
@@ -55,9 +66,30 @@ private:
     }
 
     void createInstance() {
-        constexpr auto appInfo = vk::ApplicationInfo("Hello Triangle",
-                                                    1, "No Engine", 1,
-                                                    vk::ApiVersion14);
+        constexpr vk::ApplicationInfo appInfo {
+            .pApplicationName = "Hello Triangle",
+            .applicationVersion = VK_MAKE_VERSION(1,0,0),
+            .pEngineName = "No Engine",
+            .engineVersion = VK_MAKE_VERSION(1,0,0),
+            .apiVersion = vk::ApiVersion14 
+        };
+        // Get the required validation layers
+        std::vector<char const*> requiredLayers;
+        if (enableValidationLayers) {
+            requiredLayers.assign(validationLayers.begin(), validationLayers.end());
+        }
+
+        // Check if required layers are supported by Vulkan Implementation
+        auto layerProperties = context.enumerateInstanceLayerProperties();
+        if (std::ranges::any_of(requiredLayers, [&layerProperties](auto const& requiredLayer){
+            return std::ranges::none_of(layerProperties,
+                                        [requiredLayer](auto const& layerProperty){
+                                            return strcmp(layerProperty.layerName, requiredLayer) == 0;
+                                        });
+        }))
+        {
+            throw std::runtime_error("One or more required layers are not supported");
+        }
 
         // Get the required instance extensions from GLFW.
         uint32_t glfwExtensionCount = 0;
@@ -74,11 +106,14 @@ private:
 
         printEnabledExtensions();
 
-        vk::InstanceCreateInfo createInfo = vk::InstanceCreateInfo (
-            vk::InstanceCreateFlags() | vk::InstanceCreateFlagBits::eEnumeratePortabilityKHR,
-            &appInfo, 
-            {}, {},
-            enabledExtensionCount, ppEnabledExtensionNames);
+        vk::InstanceCreateInfo createInfo {
+            .flags = vk::InstanceCreateFlags() | vk::InstanceCreateFlagBits::eEnumeratePortabilityKHR,
+            .pApplicationInfo = &appInfo, 
+            .enabledLayerCount = static_cast<uint32_t>(requiredLayers.size()),
+            .ppEnabledLayerNames = requiredLayers.data(),
+            .enabledExtensionCount = enabledExtensionCount,
+            .ppEnabledExtensionNames =  ppEnabledExtensionNames
+        };
         instance = vk::raii::Instance(context, createInfo);
     }
 
