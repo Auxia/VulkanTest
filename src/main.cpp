@@ -40,11 +40,10 @@ private:
     vk::raii::Context  context;
     vk::raii::Instance instance = nullptr;
     vk::raii::DebugUtilsMessengerEXT debugMessenger = nullptr;
-
     vk::raii::PhysicalDevice physicalDevice = nullptr;
     vk::raii::Device device = nullptr;
-
-    vk::raii::Queue graphicsQueue = nullptr;
+    vk::raii::SurfaceKHR surface = nullptr;
+    vk::raii::Queue queue = nullptr;
 
     std::vector<const char*> requiredDeviceExtension = {
         vk::KHRSwapchainExtensionName,
@@ -65,6 +64,7 @@ private:
     void initVulkan() {
         createInstance();
         setupDebugMessenger();
+        createSurface();
         pickPhysicalDevice();
         createLogicalDevice();
     }
@@ -131,6 +131,14 @@ private:
             .ppEnabledExtensionNames =  requiredExtensions.data()
         };
         instance = vk::raii::Instance(context, createInfo);
+    }
+
+    void createSurface() {
+        VkSurfaceKHR _surface;
+        if(glfwCreateWindowSurface(*instance, window, nullptr, &_surface) != 0) {
+            throw std::runtime_error("failed to create window surface!");
+        }
+        surface = vk::raii::SurfaceKHR(instance, _surface);
     }
 
     void setupDebugMessenger () {
@@ -211,16 +219,22 @@ private:
     }
 
     void createLogicalDevice() {
-        // find the index of the first queue family that supports graphics
         std::vector<vk::QueueFamilyProperties> queueFamilyProperties = physicalDevice.getQueueFamilyProperties();
 
-        // get the first indext of the queueFamilyProperties that supports graphics
-        auto graphicsQueueFamilyProperty = std::ranges::find_if( queueFamilyProperties, []( auto const & qfp ) {
-            return (qfp.queueFlags & vk::QueueFlagBits::eGraphics) != static_cast<vk::QueueFlags>(0); });   
-        assert(graphicsQueueFamilyProperty != queueFamilyProperties.end() && "No graphics queue family found!");
-
-        auto graphicsIndex = static_cast<uint32_t>( std::distance( queueFamilyProperties.begin(), graphicsQueueFamilyProperty ) );
-
+        // get the first index of the queueFamilyProperties that supports graphics and present
+        uint32_t queueIndex = ~0;
+        for (uint32_t qfpIndex = 0; qfpIndex < queueFamilyProperties.size(); qfpIndex++) {
+            if((queueFamilyProperties[qfpIndex].queueFlags & vk::QueueFlagBits::eGraphics) && 
+                physicalDevice.getSurfaceSupportKHR(qfpIndex, *surface))
+                {
+                    // found a queue family that supports both graphics and present 
+                    queueIndex = qfpIndex;
+                    break;
+                }
+        }
+        if (queueIndex == ~0) {
+            throw std::runtime_error("Could not find queue for graphics and presenting -> terminating");
+        }
         //query for vulkan 1.3 features
         vk::StructureChain<vk::PhysicalDeviceFeatures2, vk::PhysicalDeviceVulkan13Features, vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT> featureChain = {
             {},
@@ -231,7 +245,7 @@ private:
         // create a device
         float queuePriority = 0.0f;
         vk::DeviceQueueCreateInfo deviceQueueCreateInfo {
-            .queueFamilyIndex = graphicsIndex,
+            .queueFamilyIndex = queueIndex,
             .queueCount = 1,
             .pQueuePriorities = &queuePriority
         };
@@ -243,7 +257,7 @@ private:
             .ppEnabledExtensionNames = requiredDeviceExtension.data()
         };
         device = vk::raii::Device(physicalDevice, deviceCreateInfo);
-        graphicsQueue = vk::raii::Queue(device, graphicsIndex, 0);
+        queue = vk::raii::Queue(device, queueIndex, 0);
     }
 
     void printEnabledExtensions() {
