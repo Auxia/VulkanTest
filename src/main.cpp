@@ -6,7 +6,7 @@
 #include <limits>
 #include <cstring>
 #include <vector>
-
+#include <fstream>
 
 #define VULKAN_HPP_NO_STRUCT_CONSTRUCTORS
 #include <vulkan/vulkan_raii.hpp>
@@ -79,6 +79,7 @@ private:
         createLogicalDevice();
         createSwapChain();
         createImageViews();
+        createGraphicsPipeline();
     }
 
     void mainLoop() {
@@ -308,6 +309,29 @@ private:
         }
     }
 
+    void createGraphicsPipeline() {
+        vk::raii::ShaderModule shaderModule = createShaderModule(readFile("../shaders/slang.spv"));
+
+        vk::PipelineShaderStageCreateInfo vertShaderStageInfo{ .stage = vk::ShaderStageFlagBits::eVertex,
+                                                                .module = shaderModule,  
+                                                                .pName = "vertMain" 
+                                                            };
+        vk::PipelineShaderStageCreateInfo fragShaderStageInfo{ .stage = vk::ShaderStageFlagBits::eFragment, 
+                                                                .module = shaderModule, 
+                                                                .pName = "fragMain" 
+                                                            };
+        vk::PipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
+    }
+
+    [[nodiscard]] vk::raii::ShaderModule createShaderModule(const std::vector<char>& code) const {
+        vk::ShaderModuleCreateInfo createInfo{ .codeSize = code.size() * sizeof(char),
+                                             .pCode = reinterpret_cast<const uint32_t*>(code.data()) 
+                                            };
+        vk::raii::ShaderModule shaderModule{ device, createInfo };
+
+        return shaderModule;
+    }
+
     static vk::Format chooseSwapSurfaceFormat(const std::vector<vk::SurfaceFormatKHR>& availableFormats) {
         const auto formatIt = std::ranges::find_if(availableFormats,
         [](const auto& format) {
@@ -333,6 +357,18 @@ private:
             std::clamp<uint32_t>(width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width),
             std::clamp<uint32_t>(height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height)
         };
+    }
+
+    static std::vector<char> readFile(const std::string& filename) {
+        std::ifstream file(filename, std::ios::ate | std::ios::binary);
+        if (!file.is_open()) {
+            throw std::runtime_error("failed to open file!");
+        }
+        std::vector<char> buffer(file.tellg());
+        file.seekg(0, std::ios::beg);
+        file.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
+        file.close();
+        return buffer;
     }
 
     void printEnabledExtensions() {
